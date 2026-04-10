@@ -1,0 +1,210 @@
+name: Plan Terraform changes
+description: GitHub Action to plan Terraform changes
+inputs:
+  environment:
+    description: 'Environment to deploy to (e.g., production, staging)'
+    required: true
+  plan_command:
+    description: 'Command to run Terraform plan'
+    required: false
+    default: mise plan
+outputs:
+  plan_outcome:
+    description: 'The stdout from the Terraform plan command'
+    value: ${{ steps.plan.outcome }}
+  init_outcome:
+    description: 'The outcome of the Terraform init step'
+    value: ${{ steps.init.outcome }}
+  check_outcome:
+    description: 'The outcome of the Terraform validate step'
+    value: ${{ steps.check.outcome }}
+  plan_output:
+    description: 'The stdout from the Terraform plan command'
+    value: ${{ steps.plan.outputs.stdout }}
+  init_output:
+    description: 'The stdout from the Terraform init command'
+    value: ${{ steps.init.outputs.stdout }}
+  check_output:
+    description: 'The stdout from the Terraform validate command'
+    value: ${{ steps.check.outputs.stdout }}
+runs:
+  using: composite
+  steps:
+    - name: Terraform init
+      # language=bash
+      run: |
+        (mise init 2>&1) | tee init.log
+        
+        echo "stdout<<EOF" >> $GITHUB_OUTPUT
+        sed 's/\x1b\[[0-9;]*m//g' init.log >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+      id: init
+      shell: bash
+
+    - name: Terraform Check
+      # language=bash
+      run: |
+        (mise validate 2>&1) | tee check.log
+        
+        echo "stdout<<EOF" >> $GITHUB_OUTPUT
+        sed 's/\x1b\[[0-9;]*m//g' check.log >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+      shell: bash
+      id: check
+
+    - name: Terraform Plan
+      # language=bash
+      run: |
+        (${{ inputs.plan_command }} 2>&1) | tee plan.log
+        
+        echo "stdout<<EOF" >> $GITHUB_OUTPUT
+        sed 's/\x1b\[[0-9;]*m//g' plan.log >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+      shell: bash
+      id: plan
+
+    - name: Upload Terraform logs as artifacts
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: Terraform-logs-${{ inputs.environment }}-${{ github.sha }}
+        path: |
+          init.log
+          check.log
+          plan.log
+        retention-days: 7
+
+    - name: Post plan to step summary
+      uses: actions/github-script@v8
+      if: always()
+      env:
+        PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        CHECK_OUTCOME: ${{ steps.check.outcome }}
+        INIT_OUTCOME: ${{ steps.init.outcome }}
+        PLAN_LOG_PATH: plan.log
+        ENVIRONMENT: ${{ inputs.environment }}
+      with:
+        # language=javascript
+        script: |
+          const fs = require('fs');
+          const {PLAN_OUTCOME, CHECK_OUTCOME, INIT_OUTCOME, PLAN_LOG_PATH, ENVIRONMENT} = process.env;
+
+          function stripAnsiCodes(text) {
+              return text
+                  .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+                  .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+          }
+
+          function findMinIndent(lines) {
+              let minIndent = Infinity;
+              for (const line of lines) {
+                  if (line.trim().length === 0) continue;
+                  const leadingSpaces = line.match(/^(\s*)/)[1].length;
+                  minIndent = Math.min(minIndent, leadingSpaces);
+              }
+              return minIndent === Infinity ? 0 : minIndent;
+          }
+
+          function normalizeIndentation(lines) {
+              const minIndent = findMinIndent(lines);
+              if (minIndent === 0) return lines.join('\n').trim();
+              
+              return lines
+                  .map(line => line.length > minIndent ? line.substring(minIndent) : line)
+                  .join('\n')
+                  .trim();
+          }
+
+          function extractPlanSection(lines, startIndex, endIndex) {
+              const extractedLines = lines.slice(startIndex, endIndex);
+              return normalizeIndentation(extractedLines);
+          }
+
+          function isNoiseLine(line) {
+              const noisePatterns = [
+                  'Refreshing state...', 'Reading...', 'Read complete',
+                  '[secrets]', '[init]', '[plan]',
+                  '$ cd ', '$ get_secret', 'Secrets written',
+                  'Initializing', 'Using terraform', 'Reusing previous',
+                  'Using previously-installed', 'Try running', 'All Terraform commands'
+              ];
+              return noisePatterns.some(pattern => line.includes(pattern));
+          }
+
+          function extractFallbackPlan(lines) {
+              const planLines = [];
+              let inPlanSection = false;
+
+              for (const line of lines) {
+                  if (line.includes('Plan:') || line.includes('Finished in')) break;
+                  if (isNoiseLine(line)) continue;
+
+                  if (!inPlanSection) {
+                      inPlanSection = line.includes('Resource actions are indicated') || line.match(/^\s*[#+~-]/);
+                  }
+
+                  if (inPlanSection) planLines.push(line);
+              }
+
+              return planLines.join('\n').trim();
+          }
+
+          function extractPlanOutput(rawOutput) {
+              const cleanOutput = stripAnsiCodes(rawOutput);
+              const lines = cleanOutput.split('\n');
+
+              if (lines.some(line => line.includes('No changes.'))) {
+                  return 'No changes. Your infrastructure matches the configuration.';
+              }
+
+              const performActionsIndex = lines.findIndex(line =>
+                  line.includes('Terraform will perform the following actions:')
+              );
+
+              if (performActionsIndex === -1) {
+                  return extractFallbackPlan(lines) || 'No changes detected.';
+              }
+
+              let startIndex = performActionsIndex + 1;
+              if (startIndex < lines.length && lines[startIndex].trim() === '') {
+                  startIndex++;
+              }
+
+              const endIndex = lines.findIndex((line, i) =>
+                  i >= startIndex && (line.includes('Plan:') || line.includes('Finished in'))
+              );
+
+              const finalEndIndex = endIndex === -1 ? lines.length : endIndex;
+              return extractPlanSection(lines, startIndex, finalEndIndex) || 'No changes detected.';
+          }
+
+          let planOutput;
+          try {
+              const rawOutput = fs.readFileSync(PLAN_LOG_PATH, 'utf8');
+              planOutput = extractPlanOutput(rawOutput);
+          } catch (error) {
+              planOutput = `Error reading plan output: ${error.message}`;
+          }
+
+          const summary = [
+              `## Terraform plan - ${ENVIRONMENT}`,
+              '',
+              '| Step | Status |',
+              '| ---- | -------- |',
+              `| Terraform Initialization :wrench:️ | \`${INIT_OUTCOME}\` |`,
+              `| Terraform Check :white_check_mark: | \`${CHECK_OUTCOME}\` |`,
+              `| Terraform Plan :pencil: | \`${PLAN_OUTCOME}\` |`,
+              '',
+              '<details>',
+              '<summary>Show Plan Output</summary>',
+              '',
+              '```terraform',
+              planOutput,
+              '```',
+              '',
+              '</details>',
+              '',
+              ':package: **Full logs available in workflow artifacts**'
+          ].join('\n');
+
+          await core.summary.addRaw(summary).write();

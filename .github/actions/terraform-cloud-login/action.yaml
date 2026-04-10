@@ -1,0 +1,28 @@
+name: Login to Terraform Cloud
+description: |
+  This action logs into Terraform Cloud using the provided GCP access token. It sets the necessary
+  environment variables for Terraform Cloud authentication, allowing subsequent Terraform commands to interact
+  with Terraform Cloud seamlessly. This action is designed to be used in a workflow that requires authentication
+  with Terraform Cloud, such as planning or applying Terraform configurations.
+inputs:
+  terraform_access_token_secret_name:
+    description: 'Name of the GCP secret manager secret to store the Terraform Cloud API token'
+    required: false
+    default: terraform-cloud-api-token
+outputs:
+  terraform_cloud_api_token:
+    description: 'The Terraform Cloud API token retrieved from GCP Secret Manager'
+    value: ${{ steps.read_secret.outputs.terraform_cloud_api_token }}
+runs:
+  using: composite
+  steps:
+    - name: Read secret from GCP Secret Manager
+      id: read_secret
+      # language=bash
+      run: |
+        set -euo pipefail
+        TF_API_TOKEN=$(gcloud secrets versions access latest --secret="${{ inputs.terraform_access_token_secret_name }}")
+        echo "::add-mask::${TF_API_TOKEN}"
+        echo "TF_API_TOKEN=${TF_API_TOKEN}" >> $GITHUB_ENV
+        echo "terraform_cloud_api_token=${TF_API_TOKEN}" >> $GITHUB_OUTPUT
+      shell: bash

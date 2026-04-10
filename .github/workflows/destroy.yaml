@@ -1,0 +1,69 @@
+name: Destroy Terraform infrastructure
+on:
+  workflow_call:
+    inputs:
+      concurrency_group:
+        required: false
+        type: string
+        default: 'destroy-infrastructure-${{ github.ref }}'
+      run_name:
+        required: false
+        type: string
+        default: 'Destroy Terraform infrastructure'
+      runs_on:
+        required: false
+        type: string
+        default: 'ubuntu-22.04'
+      environment:
+        required: true
+        type: string
+      gcp_sa_email:
+        required: true
+        type: string
+      gcp_wif_resource_id:
+        required: true
+        type: string
+      gcp_token_lifetime:
+        required: false
+        type: string
+        default: '300s'
+      approve_destroy:
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ inputs.concurrency_group }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  destroy:
+    name: Destroy infrastructure
+    runs-on: ${{ inputs.runs_on }}
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Bootstrap repository
+        uses: ./.github/actions/bootstrap-repository
+      - name: Login to GCP
+        uses: google-github-actions/auth@v3
+        id: gcp_auth
+        with:
+          export_environment_variables: 'true'
+          workload_identity_provider: ${{ inputs.gcp_wif_resource_id }}
+          service_account: ${{ inputs.gcp_sa_email }}
+          access_token_lifetime: ${{ inputs.gcp_token_lifetime }}
+      - name: Retrieve TF Cloud credentials
+        uses: ./.github/actions/terraform-cloud-login
+        id: tf_cloud_login
+      - name: Destroy Terraform infrastructure
+        run: mise destroy
+        if: inputs.approve_distroy
+        id: destroy
+        env:
+          TF_TOKEN_app_terraform_io: ${{ steps.tf_cloud_login.outputs.terraform_cloud_api_token }}

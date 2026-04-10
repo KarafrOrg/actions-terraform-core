@@ -1,0 +1,15 @@
+name: Bootstrap repository
+description: |
+  This action bootstraps the repository by creating a pull request with the necessary files and configurations for
+  the project. It uses the jdx/mise-action to automate the process of setting up the repository structure, 
+  adding essential files, and ensuring that the repository is ready for development. 
+  This action is designed to be used in a workflow that is triggered manually or on specific events to 
+  initialize the repository with the required setup.
+runs:
+  using: composite
+  steps:
+    - name: Bootstrap repository
+      id: bootstrap-repository
+      uses: jdx/mise-action@v4
+      with:
+        experimental: 'true'
