@@ -47,7 +47,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: Bootstrap repository
-        uses: ./.github/actions/bootstrap-repository
+        uses: KarafrOrg/actions-terraform-core/.github/actions/bootstrap-repository@v0.1.0
       - name: Login to GCP
         uses: google-github-actions/auth@v3
         id: gcp_auth
@@ -57,10 +57,10 @@ jobs:
           service_account: ${{ inputs.gcp_sa_email }}
           access_token_lifetime: ${{ inputs.gcp_token_lifetime }}
       - name: Retrieve TF Cloud credentials
-        uses: ./.github/actions/terraform-cloud-login
+        uses: KarafrOrg/actions-terraform-core/.github/actions/terraform-cloud-login@v0.1.0
         id: tf_cloud_login
       - name: Run Terraform plan
-        uses: ./.github/actions/terraform-plan
+        uses: KarafrOrg/actions-terraform-core/.github/actions/terraform-plan@v0.1.0
         id: plan
         env:
           TF_TOKEN_app_terraform_io: ${{ steps.tf_cloud_login.outputs.terraform_cloud_api_token }}
