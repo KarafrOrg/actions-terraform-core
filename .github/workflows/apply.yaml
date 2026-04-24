@@ -27,6 +27,10 @@ on:
         required: false
         type: string
         default: '300s'
+      apply_command:
+        type: string
+        default: 'mise apply'
+        required: false
 
 concurrency:
   group: ${{ inputs.concurrency_group }}
@@ -67,7 +71,7 @@ jobs:
         with:
           environment: ${{ inputs.environment }}
       - name: Run Terraform apply
-        run: mise apply
+        run: ${{ inputs.apply_command }}
         id: apply
         env:
           TF_TOKEN_app_terraform_io: ${{ steps.tf_cloud_login.outputs.terraform_cloud_api_token }}
