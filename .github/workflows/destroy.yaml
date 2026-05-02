@@ -66,11 +66,8 @@ jobs:
         uses: KarafrOrg/actions-terraform-core/.github/actions/terraform-cloud-login@v0.1.1
         id: tf_cloud_login
       - name: Destroy Terraform infrastructure
-        run: mise destroy
-        if: inputs.approve_distroy
+        if: inputs.approve_destroy
         id: destroy
+        run: ${{ inputs.destroy_command }}
         env:
           TF_TOKEN_app_terraform_io: ${{ steps.tf_cloud_login.outputs.terraform_cloud_api_token }}
-        with:
-          environment: ${{ inputs.environment }}
-          destroy_command: ${{ inputs.destroy_command }}
