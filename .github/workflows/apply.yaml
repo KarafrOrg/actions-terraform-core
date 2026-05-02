@@ -27,6 +27,14 @@ on:
         required: false
         type: string
         default: '300s'
+      apply_command:
+        type: string
+        default: 'mise apply'
+        required: false
+      plan_command:
+        type: string
+        default: 'mise plan'
+        required: false
 
 concurrency:
   group: ${{ inputs.concurrency_group }}
@@ -47,7 +55,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: Bootstrap repository
-        uses: ./.github/actions/bootstrap-repository
+        uses: KarafrOrg/actions-terraform-core/.github/actions/bootstrap-repository@v0.1.1
       - name: Login to GCP
         uses: google-github-actions/auth@v3
         id: gcp_auth
@@ -57,17 +65,18 @@ jobs:
           service_account: ${{ inputs.gcp_sa_email }}
           access_token_lifetime: ${{ inputs.gcp_token_lifetime }}
       - name: Retrieve TF Cloud credentials
-        uses: ./.github/actions/terraform-cloud-login
+        uses: KarafrOrg/actions-terraform-core/.github/actions/terraform-cloud-login@v0.1.1
         id: tf_cloud_login
       - name: Run Terraform plan
-        uses: ./.github/actions/terraform-plan
+        uses: KarafrOrg/actions-terraform-core/.github/actions/terraform-plan@v0.1.1
         id: plan
         env:
           TF_TOKEN_app_terraform_io: ${{ steps.tf_cloud_login.outputs.terraform_cloud_api_token }}
         with:
           environment: ${{ inputs.environment }}
+          plan_command: ${{ inputs.plan_command }}
       - name: Run Terraform apply
-        run: mise apply
+        run: ${{ inputs.apply_command }}
         id: apply
         env:
           TF_TOKEN_app_terraform_io: ${{ steps.tf_cloud_login.outputs.terraform_cloud_api_token }}

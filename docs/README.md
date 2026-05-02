@@ -1,5 +1,7 @@
 # actions-terraform-core
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/KarafrOrg/infra-ovh)
+
 Core reusable GitHub Actions workflows and composite actions for managing Terraform infrastructure.
 This repository is intended for homelab use and provides a consistent, opinionated pipeline for planning, applying, and destroying Terraform-managed infrastructure backed by Terraform Cloud and Google Cloud Platform (GCP).
 
