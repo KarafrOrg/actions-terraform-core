@@ -43,3 +43,40 @@ git push origin "$TAG_MAJOR" "$TAG_MINOR" "$TAG_PATCH" --force
 echo ""
 echo "Done. Tags pushed successfully."
 """
+
+[tasks.update-action-refs]
+description = "Update all KarafrOrg/actions-terraform-core action references to the latest release version"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="${1:-}"
+
+if [[ -z "$VERSION" ]]; then
+  echo "Usage: mise run update-action-refs <version>"
+  echo "Example: mise run update-action-refs 1.0.0"
+  exit 1
+fi
+
+VERSION="${VERSION#v}"
+
+if ! [[ "$VERSION" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]; then
+  echo "Error: version must be in format X.Y.Z (e.g. 1.0.0)"
+  exit 1
+fi
+
+LATEST_VERSION="v${VERSION}"
+
+echo "Updating references to $LATEST_VERSION..."
+
+find .github -name "*.yml" -o -name "*.yaml" | while read -r file; do
+  sed -i "" \
+    "s|KarafrOrg/actions-terraform-core/\\.github/actions/\\([^@]*\\)@[^ ]*|KarafrOrg/actions-terraform-core/.github/actions/\\1@${LATEST_VERSION}|g" \
+    "$file"
+  echo "  Updated: $file"
+done
+
+echo ""
+echo "Done. All references updated to $LATEST_VERSION."
+"""
+
