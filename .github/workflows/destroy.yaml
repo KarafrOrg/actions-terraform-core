@@ -53,7 +53,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: Bootstrap repository
-        uses: KarafrOrg/actions-terraform-core/.github/actions/bootstrap-repository@v0.1.1
+        uses: KarafrOrg/actions-terraform-core/.github/actions/bootstrap-repository@v0.1.2
       - name: Login to GCP
         uses: google-github-actions/auth@v3
         id: gcp_auth
@@ -63,7 +63,7 @@ jobs:
           service_account: ${{ inputs.gcp_sa_email }}
           access_token_lifetime: ${{ inputs.gcp_token_lifetime }}
       - name: Retrieve TF Cloud credentials
-        uses: KarafrOrg/actions-terraform-core/.github/actions/terraform-cloud-login@v0.1.1
+        uses: KarafrOrg/actions-terraform-core/.github/actions/terraform-cloud-login@v0.1.2
         id: tf_cloud_login
       - name: Destroy Terraform infrastructure
         if: inputs.approve_destroy
@@ -71,3 +71,6 @@ jobs:
         run: ${{ inputs.destroy_command }}
         env:
           TF_TOKEN_app_terraform_io: ${{ steps.tf_cloud_login.outputs.terraform_cloud_api_token }}
+      - name: Unlock terraform state
+        if: always()
+        run: '${{ inputs.unlock_state_command }}'

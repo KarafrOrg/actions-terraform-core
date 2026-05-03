@@ -79,4 +79,3 @@ done
 echo ""
 echo "Done. All references updated to $LATEST_VERSION."
 """
-
