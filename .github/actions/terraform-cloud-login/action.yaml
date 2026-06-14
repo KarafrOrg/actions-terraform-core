@@ -24,5 +24,6 @@ runs:
         TF_API_TOKEN=$(gcloud secrets versions access latest --secret="${{ inputs.terraform_access_token_secret_name }}")
         echo "::add-mask::${TF_API_TOKEN}"
         echo "TF_API_TOKEN=${TF_API_TOKEN}" >> $GITHUB_ENV
+        echo "TF_TOKEN_app_terraform_io=${TF_API_TOKEN}" >> $GITHUB_ENV
         echo "terraform_cloud_api_token=${TF_API_TOKEN}" >> $GITHUB_OUTPUT
       shell: bash
